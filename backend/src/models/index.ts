@@ -162,7 +162,7 @@ export const Job = mongoose.model<IJob>('Job', JobSchema);
 export interface IApplication extends Document {
     student: mongoose.Types.ObjectId;
     job: mongoose.Types.ObjectId;
-    status: 'Rejected' | 'Pending' | 'Round1' | 'Round2' | 'Shortlisted' | 'TalentPool';
+    status: 'Rejected' | 'Pending' | 'Round1' | 'Round2' | 'Shortlisted' | 'TalentPool' | 'Withdrawn';
     rejectionReason?: string;
     aiScore: {
         fitScore: number;
@@ -202,7 +202,7 @@ const ApplicationSchema = new Schema<IApplication>({
     job: { type: Schema.Types.ObjectId, ref: 'Job', required: true },
     status: {
         type: String,
-        enum: ['Rejected', 'Pending', 'Round1', 'Round2', 'Shortlisted', 'TalentPool'],
+        enum: ['Rejected', 'Pending', 'Round1', 'Round2', 'Shortlisted', 'TalentPool', 'Withdrawn'],
         default: 'Pending'
     },
     rejectionReason: String,

@@ -12,6 +12,9 @@ interface Job {
         name: string;
         website?: string;
         description?: string;
+        address?: string;
+        contactPerson?: string;
+        size?: string;
     };
     matchScore: number;
     createdAt: string;
@@ -78,6 +81,25 @@ export default function StudentDashboard() {
         fetchJobs();
         fetchApplications();
     }, [fetchJobs, fetchApplications]);
+
+    const handleWithdraw = async (applicationId: string) => {
+        if (!confirm('Are you sure you want to withdraw this application? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const headers = await getHeaders();
+            await axios.post(`${import.meta.env.VITE_API_URL}/api/student/withdraw-application/${applicationId}`, {}, { headers });
+            alert('Application withdrawn successfully');
+            fetchApplications(); // Refresh applications list
+        } catch (error: any) {
+            console.error('Error withdrawing application:', error);
+            alert(error.response?.data?.message || 'Failed to withdraw application');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const openApplicationForm = (job: Job) => {
         setSelectedJob(job);
@@ -197,21 +219,32 @@ export default function StudentDashboard() {
                         <div className="space-y-3">
                             {applications.map((app) => (
                                 <div key={app._id} className="flex justify-between items-center p-4 border rounded-lg hover:bg-gray-50">
-                                    <div>
+                                    <div className="flex-1">
                                         <h3 className="font-bold text-gray-900">{app.job?.title || 'Job Position'}</h3>
                                         <p className="text-sm text-gray-600">{app.job?.company?.name || 'Company'}</p>
                                         <p className="text-xs text-gray-400 mt-1">Applied: {new Date(app.appliedAt).toLocaleDateString()}</p>
                                     </div>
-                                    <div className="text-right">
-                                        <span className={`px-3 py-1 rounded-full text-sm font-bold ${app.status === 'Shortlisted' ? 'bg-green-100 text-green-700' :
-                                                app.status === 'Rejected' ? 'bg-red-100 text-red-700' :
-                                                    app.status === 'Round1' ? 'bg-blue-100 text-blue-700' :
-                                                        'bg-yellow-100 text-yellow-700'
-                                            }`}>
-                                            {app.status}
-                                        </span>
-                                        {app.aiScore?.fitScore > 0 && (
-                                            <p className="text-sm text-gray-500 mt-1">Match: {app.aiScore.fitScore}%</p>
+                                    <div className="flex items-center gap-3">
+                                        <div className="text-right">
+                                            <span className={`px-3 py-1 rounded-full text-sm font-bold ${app.status === 'Shortlisted' ? 'bg-green-100 text-green-700' :
+                                                    app.status === 'Rejected' ? 'bg-red-100 text-red-700' :
+                                                        app.status === 'Round1' ? 'bg-blue-100 text-blue-700' :
+                                                            app.status === 'Withdrawn' ? 'bg-gray-100 text-gray-700' :
+                                                                'bg-yellow-100 text-yellow-700'
+                                                }`}>
+                                                {app.status}
+                                            </span>
+                                            {app.aiScore?.fitScore > 0 && (
+                                                <p className="text-sm text-gray-500 mt-1">Match: {app.aiScore.fitScore}%</p>
+                                            )}
+                                        </div>
+                                        {app.status !== 'Withdrawn' && app.status !== 'Rejected' && (
+                                            <button
+                                                onClick={() => handleWithdraw(app._id)}
+                                                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-sm font-medium"
+                                            >
+                                                Withdraw
+                                            </button>
                                         )}
                                     </div>
                                 </div>
@@ -261,9 +294,48 @@ export default function StudentDashboard() {
                                                     </span>
                                                 )}
                                             </div>
-                                            {job.company?.description && (
-                                                <p className="text-sm text-gray-500 italic mb-3">{job.company.description}</p>
-                                            )}
+                                            
+                                            {/* Company Details Section */}
+                                            <div className="bg-gray-50 rounded-lg p-4 mb-3 border border-gray-200">
+                                                <h4 className="font-semibold text-gray-700 mb-2 text-sm">Company Information</h4>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600">
+                                                    {job.company?.description && (
+                                                        <div className="col-span-2">
+                                                            <span className="font-medium">About: </span>
+                                                            <span className="italic">{job.company.description}</span>
+                                                        </div>
+                                                    )}
+                                                    {job.company?.website && (
+                                                        <div>
+                                                            <span className="font-medium">Website: </span>
+                                                            <a href={job.company.website.startsWith('http') ? job.company.website : `https://${job.company.website}`} 
+                                                               target="_blank" 
+                                                               rel="noopener noreferrer"
+                                                               className="text-blue-600 hover:underline">
+                                                                {job.company.website}
+                                                            </a>
+                                                        </div>
+                                                    )}
+                                                    {job.company?.address && (
+                                                        <div>
+                                                            <span className="font-medium">Address: </span>
+                                                            <span>{job.company.address}</span>
+                                                        </div>
+                                                    )}
+                                                    {job.company?.contactPerson && (
+                                                        <div>
+                                                            <span className="font-medium">Contact: </span>
+                                                            <span>{job.company.contactPerson}</span>
+                                                        </div>
+                                                    )}
+                                                    {job.company?.size && (
+                                                        <div>
+                                                            <span className="font-medium">Company Size: </span>
+                                                            <span>{job.company.size}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
                                         <div className="text-center ml-4">
                                             <div className="bg-green-100 rounded-full w-20 h-20 flex items-center justify-center">
