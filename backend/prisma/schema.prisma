@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  role      String   // "ADMIN" | "CANDIDATE"
+  createdAt DateTime @default(now())
+}
+
+model Job {
+  id             String   @id @default(uuid())
+  title          String
+  description    String
+  positions      Int
+  requiredSkills String   // Stored as JSON string
+  createdAt      DateTime @default(now())
+  scores         Score[]
+}
+
+model Resume {
+  id              String   @id @default(uuid())
+  originalFileUrl String?
+  parsedContent   String?  // JSON string
+  candidateName   String?
+  candidateEmail  String?
+  createdAt       DateTime @default(now())
+  scores          Score[]
+  tests           Test[]
+}
+
+model Score {
+  id              String   @id @default(uuid())
+  resumeId        String
+  jobId           String
+  baseScore       Float
+  skillMatchScore Float
+  expScore        Float
+  flags           String?  // JSON string
+  explanation     String?  // JSON string
+  createdAt       DateTime @default(now())
+
+  resume Resume @relation(fields: [resumeId], references: [id])
+  job    Job    @relation(fields: [jobId], references: [id])
+}
+
+model Test {
+  id             String   @id @default(uuid())
+  resumeId       String
+  token          String   @unique
+  type           String
+  status         String   // "PENDING", "COMPLETED"
+  resultScore    Float?
+  resultFeedback String?
+  antiCheatLOG   String?  // JSON string of logs
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  resume Resume @relation(fields: [resumeId], references: [id])
+}
