@@ -1,6 +1,6 @@
-# Antigravity IDE - Hiring & Assessment Platform
+# HireFlow - Hiring & Assessment Platform
 
-**Elevator Pitch:** Antigravity IDE is a secure, end-to-end recruitment platform that automates resume screening with AI, manages specific recruitment drives (HR), and offers a seamless application-to-assessment flow for candidates (Student).
+**Elevator Pitch:** HireFlow is a secure, end-to-end recruitment platform that automates resume screening with AI, manages specific recruitment drives (HR), and offers a seamless application-to-assessment flow for candidates (Student).
 
 ---
 
