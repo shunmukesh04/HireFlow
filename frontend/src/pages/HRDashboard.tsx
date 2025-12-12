@@ -30,7 +30,12 @@ interface Candidate {
     matchScore?: number;
     status?: string;
     appliedAt?: string;
-    resume?: string;
+    resume?: {
+        fileName: string | null;
+        fileUrl: string | null;
+        uploadedAt: Date | string | null;
+        hasResume: boolean;
+    };
     _id?: string;
 }
 
@@ -55,8 +60,11 @@ interface JobHistory {
 export default function HRDashboard() {
     const { getToken } = useAuth();
     const API_URL = useMemo(() => {
-        const base = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '').replace(/\/api$/, '');
-        return `${base}/api`;
+        // Get base URL from environment or default to localhost:3000
+        const base = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        // Remove trailing slashes and /api if present
+        const cleanBase = base.replace(/\/+$/, '').replace(/\/api$/, '');
+        return `${cleanBase}/api`;
     }, []);
     const [tab, setTab] = useState<'company' | 'job' | 'view' | 'history'>('job');
     const [company, setCompany] = useState<Company>({
@@ -80,13 +88,16 @@ export default function HRDashboard() {
 
     const getHeaders = useCallback(async () => {
         const token = await getToken();
-        return { Authorization: `Bearer ${token}` };
+        return { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        };
     }, [getToken]);
 
     const loadCompanyData = useCallback(async () => {
         try {
             const headers = await getHeaders();
-            const res = await axios.get(`${API_URL}/hr/company`, { headers });
+            const res = await axios.get(`${API_URL}/hr/company`, { headers, withCredentials: true });
             if (res.data) {
                 setCompany({
                     name: res.data.name || '',
@@ -108,17 +119,64 @@ export default function HRDashboard() {
         loadCompanyData();
     }, [loadCompanyData]);
 
+    // Auto-fetch data when switching to relevant tabs
+    useEffect(() => {
+        if (tab === 'view') {
+            fetchCandidates();
+        } else if (tab === 'history') {
+            fetchJobHistory();
+        }
+    }, [tab]);
+
     const handleCompanySubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         try {
-            const headers = await getHeaders();
-            const res = await axios.post(`${API_URL}/hr/company`, company, { headers });
+            const token = await getToken();
+            if (!token) {
+                alert('Authentication error. Please log in again.');
+                return;
+            }
+
+            const headers = {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            };
+
+            console.log('Saving company:', company);
+            console.log('API URL:', `${API_URL}/hr/company`);
+            console.log('Headers:', { ...headers, Authorization: 'Bearer ***' });
+
+            const res = await axios.post(`${API_URL}/hr/company`, company, { 
+                headers, 
+                withCredentials: true,
+                timeout: 10000 // 10 second timeout
+            });
+            
+            console.log('Company save response:', res.data);
             alert(res.data.message || 'Company Saved Successfully!');
             await loadCompanyData(); // Reload to get updated data
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error saving company:", error);
-            alert('Error saving company: ' + (error instanceof Error ? error.message : 'Unknown error'));
+            
+            if (error.code === 'ECONNABORTED') {
+                alert('Request timeout. Please check your connection and try again.');
+            } else if (error.message === 'Network Error' || !error.response) {
+                alert('Network error. Please check:\n1. Backend server is running on port 3000\n2. CORS is properly configured\n3. Check browser console for details');
+                console.error('Network error details:', {
+                    message: error.message,
+                    code: error.code,
+                    config: error.config
+                });
+            } else {
+                const errorMsg = error.response?.data?.message || error.message || 'Unknown error';
+                console.error('Error details:', {
+                    status: error.response?.status,
+                    data: error.response?.data,
+                    message: errorMsg
+                });
+                alert('Error saving company: ' + errorMsg);
+            }
         } finally {
             setLoading(false);
         }
@@ -135,7 +193,7 @@ export default function HRDashboard() {
                 requiredSkills: job.skills.split(',').map(skill => skill.trim()),
                 location: job.location
             };
-            const res = await axios.post(`${API_URL}/hr/job`, jobData, { headers });
+            const res = await axios.post(`${API_URL}/hr/job`, jobData, { headers, withCredentials: true });
             alert(res.data.message || 'Job Posted Successfully!');
             
             // Reset form
@@ -160,21 +218,67 @@ export default function HRDashboard() {
 
     const fetchCandidates = async () => {
         try {
+            setLoading(true);
             const headers = await getHeaders();
-            const res = await axios.get(`${API_URL}/hr/candidates`, { headers });
+            console.log('Fetching candidates from:', `${API_URL}/hr/candidates`);
+            const res = await axios.get(`${API_URL}/hr/candidates`, { headers, withCredentials: true });
+            console.log('Candidates response:', res.data);
             setCandidates(res.data || []);
-        } catch (error) {
+            if (!res.data || res.data.length === 0) {
+                console.log('No candidates found. Make sure you have posted jobs and students have applied.');
+            }
+        } catch (error: any) {
             console.error('Error fetching candidates:', error);
+            const errorMsg = error.response?.data?.message || error.message || 'Failed to fetch candidates';
+            console.error('Error details:', {
+                status: error.response?.status,
+                data: error.response?.data,
+                message: errorMsg
+            });
+            // Show error to user
+            if (error.response?.status === 403) {
+                alert('Access denied. Please ensure you are logged in as HR and have proper permissions.');
+            } else if (error.response?.status === 401) {
+                alert('Authentication failed. Please log in again.');
+            } else {
+                console.error('Failed to fetch candidates:', errorMsg);
+            }
+            setCandidates([]); // Set empty array on error
+        } finally {
+            setLoading(false);
         }
     };
 
     const fetchJobHistory = async () => {
         try {
+            setLoading(true);
             const headers = await getHeaders();
-            const res = await axios.get(`${API_URL}/hr/job-history`, { headers });
+            console.log('Fetching job history from:', `${API_URL}/hr/job-history`);
+            const res = await axios.get(`${API_URL}/hr/job-history`, { headers, withCredentials: true });
+            console.log('Job history response:', res.data);
             setJobHistory(res.data || []);
-        } catch (error) {
+            if (!res.data || res.data.length === 0) {
+                console.log('No job history found. Post a job to see history here.');
+            }
+        } catch (error: any) {
             console.error('Error fetching job history:', error);
+            const errorMsg = error.response?.data?.message || error.message || 'Failed to fetch job history';
+            console.error('Error details:', {
+                status: error.response?.status,
+                data: error.response?.data,
+                message: errorMsg
+            });
+            // Show error to user
+            if (error.response?.status === 403) {
+                alert('Access denied. Please ensure you are logged in as HR and have proper permissions.');
+            } else if (error.response?.status === 401) {
+                alert('Authentication failed. Please log in again.');
+            } else {
+                console.error('Failed to fetch job history:', errorMsg);
+            }
+            setJobHistory([]); // Set empty array on error
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -186,7 +290,7 @@ export default function HRDashboard() {
         try {
             setLoading(true);
             const headers = await getHeaders();
-            await axios.delete(`${API_URL}/hr/application/${applicationId}`, { headers });
+            await axios.delete(`${API_URL}/hr/application/${applicationId}`, { headers, withCredentials: true });
             alert('Application deleted successfully');
             fetchCandidates(); // Refresh candidates list
         } catch (error: any) {
@@ -210,7 +314,7 @@ export default function HRDashboard() {
         setLoading(true);
         try {
             const headers = await getHeaders();
-            const res = await axios.post(`${API_URL}/hr/assign-test`, { applicationId }, { headers });
+            const res = await axios.post(`${API_URL}/hr/assign-test`, { applicationId }, { headers, withCredentials: true });
             alert(res.data.message || 'Test assigned successfully!');
             await fetchCandidates(); // Refresh candidates list
         } catch (error: any) {
@@ -227,19 +331,19 @@ export default function HRDashboard() {
             {/* Sidebar */}
             <aside className="w-64 bg-white shadow-xl min-h-screen flex flex-col">
                 <div className="p-6 border-b">
-                    <h1 className="text-2xl font-bold text-blue-600">Hireflow HR</h1>
+                    <h1 className="text-2xl font-bold text-orange-600">Hireflow HR</h1>
                 </div>
                 <nav className="flex-1 p-4 space-y-2">
-                    <button onClick={() => setTab('company')} className={`w-full text-left px-4 py-3 rounded-lg flex items-center gap-2 font-medium transition ${tab === 'company' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}>
+                    <button onClick={() => setTab('company')} className={`w-full text-left px-4 py-3 rounded-lg flex items-center gap-2 font-medium transition ${tab === 'company' ? 'bg-orange-50 text-orange-600' : 'text-gray-600 hover:bg-gray-50'}`}>
                         1. Company Profile
                     </button>
-                    <button onClick={() => setTab('job')} className={`w-full text-left px-4 py-3 rounded-lg flex items-center gap-2 font-medium transition ${tab === 'job' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}>
+                    <button onClick={() => setTab('job')} className={`w-full text-left px-4 py-3 rounded-lg flex items-center gap-2 font-medium transition ${tab === 'job' ? 'bg-orange-50 text-orange-600' : 'text-gray-600 hover:bg-gray-50'}`}>
                         2. Post Job
                     </button>
-                    <button onClick={() => { setTab('view'); fetchCandidates(); }} className={`w-full text-left px-4 py-3 rounded-lg flex items-center gap-2 font-medium transition ${tab === 'view' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}>
+                    <button onClick={() => { setTab('view'); fetchCandidates(); }} className={`w-full text-left px-4 py-3 rounded-lg flex items-center gap-2 font-medium transition ${tab === 'view' ? 'bg-orange-50 text-orange-600' : 'text-gray-600 hover:bg-gray-50'}`}>
                         3. View Applicants
                     </button>
-                    <button onClick={() => { setTab('history'); fetchJobHistory(); }} className={`w-full text-left px-4 py-3 rounded-lg flex items-center gap-2 font-medium transition ${tab === 'history' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}>
+                    <button onClick={() => { setTab('history'); fetchJobHistory(); }} className={`w-full text-left px-4 py-3 rounded-lg flex items-center gap-2 font-medium transition ${tab === 'history' ? 'bg-orange-50 text-orange-600' : 'text-gray-600 hover:bg-gray-50'}`}>
                         4. Job History
                     </button>
                 </nav>
@@ -344,7 +448,7 @@ export default function HRDashboard() {
                                 />
                                 <button
                                     disabled={loading}
-                                    className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50"
+                                    className="bg-orange-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-orange-700 disabled:opacity-50"
                                 >
                                     {loading ? 'Saving...' : company.name ? 'Update Company' : 'Create Company'}
                                 </button>
@@ -361,7 +465,7 @@ export default function HRDashboard() {
                             <textarea placeholder="Job Description" rows={4} className="w-full border p-3 rounded-lg" onChange={e => setJob({ ...job, description: e.target.value })} />
                             <input placeholder="Required Skills (comma separated)" className="w-full border p-3 rounded-lg" onChange={e => setJob({ ...job, skills: e.target.value })} />
                             <input placeholder="Location" className="w-full border p-3 rounded-lg" onChange={e => setJob({ ...job, location: e.target.value })} />
-                            <button className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700">Publish Job</button>
+                            <button className="bg-orange-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-orange-700">Publish Job</button>
                         </form>
                     </div>
                 )}
@@ -369,8 +473,8 @@ export default function HRDashboard() {
                 {tab === 'view' && (
                     <div className="max-w-4xl">
                         <h2 className="text-2xl font-bold mb-6">Applicants Who Applied</h2>
-                        <div className="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-100">
-                            <p className="text-blue-800 text-sm">Showing students who uploaded resumes and applied to your posted jobs.</p>
+                        <div className="bg-orange-50 p-4 rounded-lg mb-6 border border-orange-100">
+                            <p className="text-orange-800 text-sm">Showing students who uploaded resumes and applied to your posted jobs.</p>
                         </div>
 
                         {candidates.length === 0 ? (
@@ -378,8 +482,17 @@ export default function HRDashboard() {
                                 <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                 </svg>
-                                <h3 className="text-lg font-bold text-gray-700 mb-2">No Applicants Yet</h3>
-                                <p className="text-gray-500">Post a job to start receiving applications from students.</p>
+                                {loading ? (
+                                    <div className="flex flex-col items-center gap-4">
+                                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+                                        <p className="text-gray-500">Loading applicants...</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <h3 className="text-lg font-bold text-gray-700 mb-2">No Applicants Yet</h3>
+                                        <p className="text-gray-500">Post a job to start receiving applications from students.</p>
+                                    </>
+                                )}
                             </div>
                         ) : (
                             <div className="space-y-4">
@@ -390,9 +503,9 @@ export default function HRDashboard() {
                                                 <div className="flex items-center gap-3 mb-2">
                                                     <h3 className="font-bold text-lg">{candidate.name || 'Student ' + (idx + 1)}</h3>
                                                     <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                                        candidate.status === 'Shortlisted' ? 'bg-green-100 text-green-700' :
+                                                        candidate.status === 'Shortlisted' ? 'bg-orange-100 text-orange-700' :
                                                         candidate.status === 'Rejected' ? 'bg-red-100 text-red-700' :
-                                                        candidate.status === 'Round1' ? 'bg-blue-100 text-blue-700' :
+                                                        candidate.status === 'Round1' ? 'bg-orange-200 text-orange-800' :
                                                         'bg-yellow-100 text-yellow-700'
                                                     }`}>
                                                         {candidate.status || 'Pending'}
@@ -423,14 +536,14 @@ export default function HRDashboard() {
                                             </div>
                                             <div className="text-right ml-4">
                                                 <div className={`text-3xl font-bold ${
-                                                    (candidate.matchScore || 0) >= 60 ? 'text-green-600' : 
+                                                    (candidate.matchScore || 0) >= 60 ? 'text-orange-600' : 
                                                     (candidate.matchScore || 0) >= 40 ? 'text-yellow-600' : 'text-red-600'
                                                 }`}>
                                                     {candidate.matchScore || 0}%
                                                 </div>
                                                 <p className="text-xs text-gray-400">Match Score</p>
                                                 {(candidate.matchScore || 0) >= 60 && (
-                                                    <p className="text-xs text-green-600 font-bold mt-1">✓ Test Eligible</p>
+                                                    <p className="text-xs text-orange-600 font-bold mt-1">✓ Test Eligible</p>
                                                 )}
                                                 {(candidate.matchScore || 0) < 60 && (
                                                     <p className="text-xs text-red-600 font-bold mt-1">✗ Need 60%+</p>
@@ -438,7 +551,95 @@ export default function HRDashboard() {
                                             </div>
                                         </div>
                                         <div className="flex justify-end gap-3 mt-4">
-                                            <button className="text-gray-500 hover:text-gray-700 font-medium text-sm">View Resume</button>
+                                            {candidate.resume?.hasResume ? (
+                                                <>
+                                                    <button
+                                                        onClick={async () => {
+                                                            try {
+                                                                const headers = await getHeaders();
+                                                                const res = await axios.get(`${API_URL}/hr/resume/${candidate.applicationId}`, {
+                                                                    headers,
+                                                                    responseType: 'blob',
+                                                                    withCredentials: true
+                                                                });
+                                                                // Get content type from response or default to PDF
+                                                                const contentType = res.headers['content-type'] || 'application/pdf';
+                                                                const fileName = candidate.resume?.fileName || 'resume.pdf';
+                                                                
+                                                                // Create blob URL and open in new tab (for PDF viewing)
+                                                                const blob = new Blob([res.data], { type: contentType });
+                                                                const url = window.URL.createObjectURL(blob);
+                                                                
+                                                                // Open PDF in new tab
+                                                                const newWindow = window.open(url, '_blank');
+                                                                if (!newWindow) {
+                                                                    alert('Please allow pop-ups to view the resume');
+                                                                }
+                                                                
+                                                                // Clean up after a delay
+                                                                setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+                                                            } catch (error: any) {
+                                                                console.error('Error viewing resume:', error);
+                                                                const errorMsg = error.response?.data?.message || 'Failed to view resume';
+                                                                alert(errorMsg);
+                                                            }
+                                                        }}
+                                                        className="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-bold hover:bg-orange-700 transition flex items-center gap-2"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                        </svg>
+                                                        View PDF
+                                                    </button>
+                                                    <button
+                                                        onClick={async () => {
+                                                            try {
+                                                                const headers = await getHeaders();
+                                                                const res = await axios.get(`${API_URL}/hr/resume/${candidate.applicationId}`, {
+                                                                    headers,
+                                                                    responseType: 'blob',
+                                                                    withCredentials: true
+                                                                });
+                                                                // Get content type and filename
+                                                                const contentType = res.headers['content-type'] || 'application/pdf';
+                                                                const fileName = candidate.resume?.fileName || 'resume.pdf';
+                                                                
+                                                                // Ensure filename has .pdf extension if it's a PDF
+                                                                const finalFileName = fileName.toLowerCase().endsWith('.pdf') 
+                                                                    ? fileName 
+                                                                    : fileName.replace(/\.[^/.]+$/, '') + '.pdf';
+                                                                
+                                                                // Create blob and download as PDF
+                                                                const blob = new Blob([res.data], { type: contentType });
+                                                                const url = window.URL.createObjectURL(blob);
+                                                                const link = document.createElement('a');
+                                                                link.href = url;
+                                                                link.download = finalFileName;
+                                                                link.style.display = 'none';
+                                                                document.body.appendChild(link);
+                                                                link.click();
+                                                                document.body.removeChild(link);
+                                                                
+                                                                // Clean up
+                                                                setTimeout(() => window.URL.revokeObjectURL(url), 100);
+                                                            } catch (error: any) {
+                                                                console.error('Error downloading resume:', error);
+                                                                const errorMsg = error.response?.data?.message || 'Failed to download resume';
+                                                                alert(errorMsg);
+                                                            }
+                                                        }}
+                                                        className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-bold hover:bg-orange-600 transition flex items-center gap-2"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                        </svg>
+                                                        Download PDF
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <span className="text-gray-400 text-sm italic">No resume uploaded</span>
+                                            )}
                                             <button 
                                                 onClick={() => handleDeleteApplication(candidate.applicationId!)}
                                                 className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-bold hover:bg-red-600 transition"
@@ -450,7 +651,7 @@ export default function HRDashboard() {
                                                 disabled={loading || (candidate.matchScore || 0) < 60 || candidate.status === 'Round1'}
                                                 className={`px-4 py-2 rounded-lg text-sm font-bold transition ${
                                                     (candidate.matchScore || 0) >= 60 && candidate.status !== 'Round1'
-                                                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                                        ? 'bg-orange-600 text-white hover:bg-orange-700'
                                                         : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                                 }`}
                                             >
@@ -467,8 +668,8 @@ export default function HRDashboard() {
                 {tab === 'history' && (
                     <div className="max-w-6xl">
                         <h2 className="text-2xl font-bold mb-6">Job Posting History</h2>
-                        <div className="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-100">
-                            <p className="text-blue-800 text-sm">View all your posted jobs with application statistics.</p>
+                        <div className="bg-orange-50 p-4 rounded-lg mb-6 border border-orange-100">
+                            <p className="text-orange-800 text-sm">View all your posted jobs with application statistics.</p>
                         </div>
 
                         {jobHistory.length === 0 ? (

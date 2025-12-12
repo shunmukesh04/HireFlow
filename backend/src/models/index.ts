@@ -177,6 +177,7 @@ export interface IApplication extends Document {
         codingScore?: number;
         totalScore?: number;
         antiCheatFlags?: string[];
+        scheduledAt?: Date;
     };
     round2?: {
         status: 'Scheduled' | 'Completed' | 'Failed';

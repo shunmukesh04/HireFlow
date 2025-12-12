@@ -14,7 +14,7 @@ function App() {
       <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
         {/* Minimal Header - Only shows on dashboards */}
         <header className="p-4 bg-white shadow flex justify-between items-center">
-          <h1 className="font-bold text-xl">Hireflow</h1>
+          <h1 className="font-bold text-xl text-orange-600">Hireflow</h1>
           <SignedIn>
             <UserButton />
           </SignedIn>

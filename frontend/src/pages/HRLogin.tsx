@@ -30,7 +30,7 @@ const HRLogin: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-gray-50">
       {/* Left side - Branding and Features */}
-      <div className="w-full md:w-1/2 bg-gradient-to-br from-blue-600 to-indigo-700 p-8 md:p-12 text-white">
+      <div className="w-full md:w-1/2 bg-gradient-to-br from-orange-600 to-orange-700 p-8 md:p-12 text-white">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -38,7 +38,7 @@ const HRLogin: React.FC = () => {
         >
           <div className="mb-8">
             <h1 className="text-3xl md:text-4xl font-bold mb-4">Welcome to HireFlow</h1>
-            <p className="text-blue-100">Streamline your hiring process with our powerful recruitment platform.</p>
+            <p className="text-orange-100">Streamline your hiring process with our powerful recruitment platform.</p>
           </div>
           
           <div className="space-y-6 mt-8">

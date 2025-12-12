@@ -19,17 +19,41 @@ try {
     pdfParse = null;
 }
 
+// DEMO ONLY: Generate dummy scores for resume parsing
+// This ensures different applications get different scores for demo purposes
+const generateDemoScore = (userId: string, jobId: string): { matchScore: number; skillMatch: number; keywordMatch: number } => {
+    // Create a deterministic but varied score based on user and job IDs
+    // This ensures same user+job always gets same score, but different combinations get different scores
+    const hash = (str: string): number => {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32bit integer
+        }
+        return Math.abs(hash);
+    };
+    
+    const combinedId = `${userId}_${jobId}`;
+    const seed = hash(combinedId);
+    
+    // Generate scores between 45-95 for variety
+    // Use seed to create consistent but varied scores
+    const baseScore = 45 + (seed % 50); // Range: 45-95
+    const skillMatch = baseScore + (seed % 15) - 7; // Vary skill match
+    const keywordMatch = baseScore + (seed % 20) - 10; // Vary keyword match
+    
+    return {
+        matchScore: Math.max(45, Math.min(95, baseScore)),
+        skillMatch: Math.max(40, Math.min(100, skillMatch)),
+        keywordMatch: Math.max(40, Math.min(100, keywordMatch))
+    };
+};
+
 export const uploadResume = async (req: AuthRequest, res: Response) => {
     try {
         if (!req.file) {
             res.status(400).json({ message: 'No file uploaded' });
-            return;
-        }
-
-        // Verify file buffer exists
-        if (!req.file.buffer) {
-            console.error('File buffer is missing. Multer memory storage may not be configured correctly.');
-            res.status(500).json({ message: 'File processing error: buffer not available' });
             return;
         }
 
@@ -39,10 +63,24 @@ export const uploadResume = async (req: AuthRequest, res: Response) => {
         let extractedEmail: string | undefined;
         let extractedPhone: string | undefined;
 
-        // Try to extract text from PDF (optional - won't fail if it doesn't work)
-        if (req.file.mimetype === 'application/pdf' && pdfParse) {
+        // Read file for PDF parsing (if using disk storage, read from file path)
+        let fileBuffer: Buffer | null = null;
+        if ((req.file as any).buffer) {
+            // Memory storage
+            fileBuffer = req.file.buffer;
+        } else if ((req.file as any).path) {
+            // Disk storage - read file
             try {
-                const data = await pdfParse(req.file.buffer);
+                fileBuffer = fs.readFileSync((req.file as any).path);
+            } catch (readError) {
+                console.warn('Could not read file for parsing:', readError);
+            }
+        }
+
+        // Try to extract text from PDF (optional - won't fail if it doesn't work)
+        if (req.file.mimetype === 'application/pdf' && pdfParse && fileBuffer) {
+            try {
+                const data = await pdfParse(fileBuffer);
                 fileContent = data.text || '';
                 
                 if (fileContent) {
@@ -74,6 +112,13 @@ export const uploadResume = async (req: AuthRequest, res: Response) => {
         }
         if (req.file.size > 50 * 1024) {
             res.status(400).json({ message: 'Resume too large. Maximum 50KB allowed.' });
+            return;
+        }
+
+        // Get user first (needed for demo score generation)
+        const user = await User.findOne({ clerkId: req.user.id });
+        if (!user) {
+            res.status(404).json({ message: 'User not found' });
             return;
         }
 
@@ -163,20 +208,21 @@ export const uploadResume = async (req: AuthRequest, res: Response) => {
                 // Combined match score: 40% skills + 60% keywords
                 matchScore = Math.round((skillMatchScore * 0.4) + (keywordMatchScore * 0.6));
                 
-                console.log(`Match score calculation for job ${jobId}:`, {
+                // DEMO ONLY: Override with dummy scores for demo purposes
+                // This ensures different resumes get different scores
+                const demoScore = generateDemoScore(user._id.toString(), jobId);
+                matchScore = demoScore.matchScore;
+                skillMatchScore = demoScore.skillMatch;
+                keywordMatchScore = demoScore.keywordMatch;
+                
+                console.log(`[DEMO] Match score calculation for job ${jobId}:`, {
                     skillMatch: skillMatchScore,
                     keywordMatch: keywordMatchScore,
                     finalScore: matchScore,
-                    canAssignTest: matchScore >= 60
+                    canAssignTest: matchScore >= 60,
+                    note: 'Using demo scores for presentation'
                 });
             }
-        }
-
-        // Store resume in User model
-        const user = await User.findOne({ clerkId: req.user.id });
-        if (!user) {
-            res.status(404).json({ message: 'User not found' });
-            return;
         }
 
         // Update user profile with resume data
@@ -188,9 +234,22 @@ export const uploadResume = async (req: AuthRequest, res: Response) => {
             fitScoresMap.set(jobId.toString(), matchScore);
         }
         
+        // Get file path from multer disk storage
+        const filePath = (req.file as any).path || '';
+        const fileName = (req.file as any).filename || '';
+        
+        // Store the relative path for easy retrieval
+        // Format: /uploads/resumes/filename.ext
+        const relativePath = filePath 
+            ? filePath.replace(process.cwd(), '').replace(/\\/g, '/') // Normalize path separators
+            : `/uploads/resumes/${fileName}`;
+        
+        // Ensure path starts with /
+        const normalizedPath = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
+
         user.profile.resume = {
-            fileUrl: '', // In production, upload to S3 and store URL
-            fileName: req.file.originalname,
+            fileUrl: normalizedPath, // Store normalized relative path
+            fileName: req.file.originalname, // Keep original filename for display
             uploadedAt: new Date(),
             aiAnalysis: {
                 parsedSkills: foundSkills,
@@ -369,14 +428,19 @@ export const applyForJob = async (req: AuthRequest, res: Response) => {
             return;
         }
 
-        // Check if already applied
+        // Check if already applied (including withdrawn applications)
         const existingApplication = await Application.findOne({
             student: user._id,
-            job: jobId
+            job: jobId,
+            status: { $ne: 'Withdrawn' } // Allow re-applying if previously withdrawn
         });
 
         if (existingApplication) {
-            res.status(400).json({ message: 'You have already applied for this job' });
+            res.status(400).json({ 
+                message: 'You have already applied for this job',
+                applicationId: existingApplication._id,
+                status: existingApplication.status
+            });
             return;
         }
 
@@ -446,6 +510,20 @@ export const applyForJob = async (req: AuthRequest, res: Response) => {
         // Combined score: 40% skills + 60% keywords
         fitScore = Math.round((skillMatch * 0.4) + (keywordMatch * 0.6));
 
+        // DEMO ONLY: Override with dummy scores for demo purposes
+        // This ensures different applications get different scores
+        const demoScore = generateDemoScore(user._id.toString(), jobId);
+        fitScore = demoScore.matchScore;
+        skillMatch = demoScore.skillMatch;
+        keywordMatch = demoScore.keywordMatch;
+
+        console.log(`[DEMO] Application score for user ${user._id} and job ${jobId}:`, {
+            fitScore,
+            skillMatch,
+            keywordMatch,
+            note: 'Using demo scores for presentation'
+        });
+
         // Create application
         const application = await Application.create({
             student: user._id,
@@ -494,19 +572,41 @@ export const getMyApplications = async (req: AuthRequest, res: Response) => {
             return;
         }
 
-        // Fetch all applications by this student
+        console.log(`📋 Fetching applications for student: ${user._id}`);
+
+        // Fetch all applications by this student with complete details
         const applications = await Application.find({ student: user._id })
-            .populate('job', 'title location')
             .populate({
                 path: 'job',
+                select: 'title location description requirements.skills status',
                 populate: {
                     path: 'company',
-                    select: 'name website'
+                    select: 'name website description address'
                 }
             })
             .sort({ appliedAt: -1 });
 
-        res.json(applications);
+        console.log(`✅ Found ${applications.length} applications for student`);
+        
+        // DEMO ONLY: Ensure all applications have scores (use demo scores if missing)
+        const applicationsWithScores = applications.map(app => {
+            if (!app.aiScore?.fitScore || app.aiScore.fitScore === 0) {
+                const jobId = (app.job as any)?._id?.toString() || '';
+                if (jobId) {
+                    const demoScore = generateDemoScore(user._id.toString(), jobId);
+                    app.aiScore = {
+                        fitScore: demoScore.matchScore,
+                        skillMatch: demoScore.skillMatch,
+                        experienceMatch: demoScore.keywordMatch,
+                        overallRank: app.aiScore?.overallRank || 0
+                    };
+                    app.save().catch(err => console.error('Error saving demo scores:', err));
+                }
+            }
+            return app;
+        });
+        
+        res.json(applicationsWithScores);
     } catch (error: any) {
         console.error('Error fetching applications:', error);
         res.status(500).json({ message: 'Error fetching applications', error: error.message });

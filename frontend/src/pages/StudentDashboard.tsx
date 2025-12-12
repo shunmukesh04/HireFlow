@@ -23,11 +23,35 @@ interface Job {
 interface Application {
     _id: string;
     job: {
+        _id?: string;
         title: string;
+        location?: string;
         company: { name: string };
     };
     status: string;
     appliedAt: string;
+    aiScore?: {
+        fitScore: number;
+        skillMatch?: number;
+        experienceMatch?: number;
+    };
+    round1?: {
+        status: string;
+        testId?: string;
+        scheduledAt?: string | Date;
+        mcqScore?: number;
+        codingScore?: number;
+        totalScore?: number;
+    };
+    round2?: {
+        status: string;
+        scheduledAt?: string | Date;
+    };
+    timeline?: Array<{
+        stage: string;
+        timestamp: string | Date;
+        action: string;
+    }>;
     aiScore: {
         fitScore: number;
     };
@@ -124,6 +148,17 @@ export default function StudentDashboard() {
     const handleSubmitApplication = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        // Check if already applied for this job
+        const alreadyApplied = applications.find(app => 
+            app.job && (app.job as any)._id === selectedJob?._id && app.status !== 'Withdrawn'
+        );
+        
+        if (alreadyApplied) {
+            alert('You have already applied for this job. Please check your applications.');
+            closeApplicationForm();
+            return;
+        }
+
         // Validation
         if (!formData.firstName || !formData.lastName || !formData.email || !formData.dateOfBirth) {
             alert('Please fill in all required fields');
@@ -177,9 +212,16 @@ export default function StudentDashboard() {
             closeApplicationForm();
             await fetchApplications(); // Refresh application history
             await fetchJobs(); // Refresh jobs list
-        } catch (error) {
+        } catch (error: any) {
             console.error('Application Error:', error);
-            alert('Application Error: ' + (error instanceof Error ? error.message : 'Unknown error'));
+            const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
+            if (errorMessage.includes('already applied')) {
+                alert('You have already applied for this job. Please check your applications.');
+                closeApplicationForm();
+                await fetchApplications(); // Refresh to show existing application
+            } else {
+                alert('Application Error: ' + errorMessage);
+            }
         } finally {
             setLoading(false);
         }
@@ -205,7 +247,7 @@ export default function StudentDashboard() {
                 {/* Application History Section */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border mb-8">
                     <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-                        <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                         My Applications ({applications.length})
@@ -216,36 +258,84 @@ export default function StudentDashboard() {
                             <p>You haven't applied to any jobs yet. Browse available positions below!</p>
                         </div>
                     ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                             {applications.map((app) => (
-                                <div key={app._id} className="flex justify-between items-center p-4 border rounded-lg hover:bg-gray-50">
-                                    <div className="flex-1">
-                                        <h3 className="font-bold text-gray-900">{app.job?.title || 'Job Position'}</h3>
-                                        <p className="text-sm text-gray-600">{app.job?.company?.name || 'Company'}</p>
-                                        <p className="text-xs text-gray-400 mt-1">Applied: {new Date(app.appliedAt).toLocaleDateString()}</p>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <div className="text-right">
-                                            <span className={`px-3 py-1 rounded-full text-sm font-bold ${app.status === 'Shortlisted' ? 'bg-green-100 text-green-700' :
-                                                    app.status === 'Rejected' ? 'bg-red-100 text-red-700' :
-                                                        app.status === 'Round1' ? 'bg-blue-100 text-blue-700' :
-                                                            app.status === 'Withdrawn' ? 'bg-gray-100 text-gray-700' :
-                                                                'bg-yellow-100 text-yellow-700'
-                                                }`}>
-                                                {app.status}
-                                            </span>
-                                            {app.aiScore?.fitScore > 0 && (
-                                                <p className="text-sm text-gray-500 mt-1">Match: {app.aiScore.fitScore}%</p>
+                                <div key={app._id} className="border rounded-lg hover:shadow-md transition-all bg-white">
+                                    {/* Main Application Card */}
+                                    <div className="p-5">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div className="flex-1">
+                                                <h3 className="text-xl font-bold text-gray-900 mb-1">{app.job?.title || 'Job Position'}</h3>
+                                                <p className="text-sm text-gray-600 mb-2">{app.job?.company?.name || 'Company'} • {app.job?.location || 'Location not specified'}</p>
+                                                <p className="text-xs text-gray-400">Applied: {new Date(app.appliedAt).toLocaleDateString()}</p>
+                                            </div>
+                                            <div className="flex flex-col items-end gap-2">
+                                                <span className={`px-4 py-2 rounded-full text-sm font-bold ${app.status === 'Shortlisted' ? 'bg-orange-100 text-orange-700 border-2 border-orange-300' :
+                                                        app.status === 'Rejected' ? 'bg-red-100 text-red-700' :
+                                                            app.status === 'Round1' ? 'bg-orange-100 text-orange-700 border-2 border-orange-300' :
+                                                                app.status === 'Withdrawn' ? 'bg-gray-100 text-gray-700' :
+                                                                    'bg-yellow-100 text-yellow-700'
+                                                    }`}>
+                                                    {app.status}
+                                                </span>
+                                                {app.aiScore?.fitScore > 0 && (
+                                                    <p className="text-sm text-gray-600 font-medium">Match Score: <span className="font-bold text-orange-600">{app.aiScore.fitScore}%</span></p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Shortlisted/Test Assigned Message */}
+                                        {(app.status === 'Shortlisted' || app.status === 'Round1') && app.round1 && (
+                                            <div className="bg-gradient-to-r from-orange-50 to-orange-100 border-l-4 border-orange-500 p-4 rounded-lg mb-4">
+                                                <div className="flex items-start gap-3">
+                                                    <svg className="w-6 h-6 text-orange-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                    <div className="flex-1">
+                                                        <h4 className="font-bold text-orange-900 mb-1">🎉 Congratulations! You've been Shortlisted!</h4>
+                                                        <p className="text-orange-800 text-sm mb-2">Your test has been scheduled. Test details will be sent to your email soon.</p>
+                                                        {app.round1?.scheduledAt && (
+                                                            <p className="text-xs text-orange-700">Scheduled: {new Date(app.round1.scheduledAt).toLocaleDateString()}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Application Timeline */}
+                                        {app.timeline && app.timeline.length > 0 && (
+                                            <div className="mt-4 pt-4 border-t border-gray-200">
+                                                <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                    <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                    Application Timeline
+                                                </h4>
+                                                <div className="space-y-2">
+                                                    {app.timeline.slice().reverse().map((event: any, idx: number) => (
+                                                        <div key={idx} className="flex items-start gap-3 text-sm">
+                                                            <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${event.stage === 'Shortlisted' ? 'bg-orange-500' : event.stage === 'Applied' ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
+                                                            <div className="flex-1">
+                                                                <p className="text-gray-700">{event.action}</p>
+                                                                <p className="text-xs text-gray-500 mt-0.5">{new Date(event.timestamp).toLocaleString()}</p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Action Buttons */}
+                                        <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-gray-200">
+                                            {app.status !== 'Withdrawn' && app.status !== 'Rejected' && (
+                                                <button
+                                                    onClick={() => handleWithdraw(app._id)}
+                                                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-sm font-medium"
+                                                >
+                                                    Withdraw Application
+                                                </button>
                                             )}
                                         </div>
-                                        {app.status !== 'Withdrawn' && app.status !== 'Rejected' && (
-                                            <button
-                                                onClick={() => handleWithdraw(app._id)}
-                                                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-sm font-medium"
-                                            >
-                                                Withdraw
-                                            </button>
-                                        )}
                                     </div>
                                 </div>
                             ))}
@@ -256,7 +346,7 @@ export default function StudentDashboard() {
                 {/* Available Jobs Section */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border">
                     <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-                        <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
                         Available Jobs ({jobs.length})
@@ -273,7 +363,7 @@ export default function StudentDashboard() {
                     ) : (
                         <div className="grid gap-6">
                             {jobs.map((job) => (
-                                <div key={job._id} className="border-2 border-gray-200 rounded-xl p-6 hover:border-green-400 hover:shadow-lg transition-all">
+                                <div key={job._id} className="border-2 border-gray-200 rounded-xl p-6 hover:border-orange-400 hover:shadow-lg transition-all">
                                     <div className="flex justify-between items-start mb-4">
                                         <div className="flex-1">
                                             <h3 className="text-2xl font-bold text-gray-900 mb-1">{job.title}</h3>
@@ -311,7 +401,7 @@ export default function StudentDashboard() {
                                                             <a href={job.company.website.startsWith('http') ? job.company.website : `https://${job.company.website}`} 
                                                                target="_blank" 
                                                                rel="noopener noreferrer"
-                                                               className="text-blue-600 hover:underline">
+                                                               className="text-orange-600 hover:underline">
                                                                 {job.company.website}
                                                             </a>
                                                         </div>
@@ -338,10 +428,10 @@ export default function StudentDashboard() {
                                             </div>
                                         </div>
                                         <div className="text-center ml-4">
-                                            <div className="bg-green-100 rounded-full w-20 h-20 flex items-center justify-center">
+                                            <div className="bg-orange-100 rounded-full w-20 h-20 flex items-center justify-center">
                                                 <div>
-                                                    <div className="text-3xl font-bold text-green-700">{job.matchScore}</div>
-                                                    <div className="text-xs text-green-600">% Match</div>
+                                                    <div className="text-3xl font-bold text-orange-700">{job.matchScore}</div>
+                                                    <div className="text-xs text-orange-600">% Match</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -357,7 +447,7 @@ export default function StudentDashboard() {
                                             <h4 className="font-bold text-gray-700 mb-2">Required Skills:</h4>
                                             <div className="flex flex-wrap gap-2">
                                                 {job.skills.map((skill, i) => (
-                                                    <span key={i} className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">
+                                                    <span key={i} className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-sm font-medium">
                                                         {skill}
                                                     </span>
                                                 ))}
@@ -371,7 +461,7 @@ export default function StudentDashboard() {
                                         </span>
                                         <button
                                             onClick={() => openApplicationForm(job)}
-                                            className="bg-green-600 text-white px-8 py-3 rounded-lg font-bold text-lg hover:bg-green-700 transition shadow-md hover:shadow-lg"
+                                            className="bg-orange-600 text-white px-8 py-3 rounded-lg font-bold text-lg hover:bg-orange-700 transition shadow-md hover:shadow-lg"
                                         >
                                             Apply Now →
                                         </button>
@@ -387,11 +477,11 @@ export default function StudentDashboard() {
             {showApplicationForm && selectedJob && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                     <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                        <div className="sticky top-0 bg-gradient-to-r from-green-600 to-green-700 text-white p-6 rounded-t-2xl">
+                        <div className="sticky top-0 bg-gradient-to-r from-orange-600 to-orange-700 text-white p-6 rounded-t-2xl">
                             <div className="flex justify-between items-start">
                                 <div>
                                     <h2 className="text-2xl font-bold mb-1">Apply for {selectedJob.title}</h2>
-                                    <p className="text-green-100">{selectedJob.company.name}</p>
+                                    <p className="text-orange-100">{selectedJob.company.name}</p>
                                 </div>
                                 <button
                                     onClick={closeApplicationForm}
@@ -413,7 +503,7 @@ export default function StudentDashboard() {
                                         required
                                         value={formData.firstName}
                                         onChange={e => setFormData({ ...formData, firstName: e.target.value })}
-                                        className="w-full border-2 border-gray-300 p-3 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200"
+                                        className="w-full border-2 border-gray-300 p-3 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
                                         placeholder="John"
                                     />
                                 </div>
@@ -424,7 +514,7 @@ export default function StudentDashboard() {
                                         required
                                         value={formData.lastName}
                                         onChange={e => setFormData({ ...formData, lastName: e.target.value })}
-                                        className="w-full border-2 border-gray-300 p-3 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200"
+                                        className="w-full border-2 border-gray-300 p-3 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
                                         placeholder="Doe"
                                     />
                                 </div>
@@ -438,7 +528,7 @@ export default function StudentDashboard() {
                                     value={formData.dateOfBirth}
                                     onChange={e => setFormData({ ...formData, dateOfBirth: e.target.value })}
                                     max={new Date().toISOString().split('T')[0]}
-                                    className="w-full border-2 border-gray-300 p-3 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200"
+                                    className="w-full border-2 border-gray-300 p-3 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
                                 />
                                 {formData.dateOfBirth && (
                                     <p className="text-sm text-gray-600 mt-1">Age: {calculateAge(formData.dateOfBirth)} years</p>
@@ -452,7 +542,7 @@ export default function StudentDashboard() {
                                     required
                                     value={formData.email}
                                     onChange={e => setFormData({ ...formData, email: e.target.value })}
-                                    className="w-full border-2 border-gray-300 p-3 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200"
+                                    className="w-full border-2 border-gray-300 p-3 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
                                     placeholder="john.doe@example.com"
                                 />
                             </div>
@@ -463,7 +553,7 @@ export default function StudentDashboard() {
                                     type="tel"
                                     value={formData.phone}
                                     onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                                    className="w-full border-2 border-gray-300 p-3 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200"
+                                    className="w-full border-2 border-gray-300 p-3 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
                                     placeholder="+1 (555) 123-4567"
                                 />
                             </div>
@@ -475,7 +565,7 @@ export default function StudentDashboard() {
                                     accept=".pdf"
                                     required
                                     onChange={e => setFormData({ ...formData, resume: e.target.files?.[0] || null })}
-                                    className="w-full border-2 border-gray-300 p-3 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-green-50 file:text-green-700 file:font-semibold hover:file:bg-green-100"
+                                    className="w-full border-2 border-gray-300 p-3 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-orange-50 file:text-orange-700 file:font-semibold hover:file:bg-orange-100"
                                 />
                                 {formData.resume && (
                                     <p className="text-sm text-gray-600 mt-2">
@@ -491,7 +581,7 @@ export default function StudentDashboard() {
                                         required
                                         checked={formData.acceptTerms}
                                         onChange={e => setFormData({ ...formData, acceptTerms: e.target.checked })}
-                                        className="mt-1 w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                                        className="mt-1 w-5 h-5 text-orange-600 border-gray-300 rounded focus:ring-green-500"
                                     />
                                     <span className="text-sm text-gray-700">
                                         I accept the terms and conditions and confirm that all information provided is accurate. I understand that providing false information may result in disqualification. *
@@ -510,7 +600,7 @@ export default function StudentDashboard() {
                                 <button
                                     type="submit"
                                     disabled={loading}
-                                    className="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="flex-1 bg-orange-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-orange-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {loading ? 'Submitting...' : 'Submit Application'}
                                 </button>

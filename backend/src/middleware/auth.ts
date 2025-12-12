@@ -97,25 +97,66 @@ export const protect = async (
             if (metadataRole === "HR" || metadataRole === "STUDENT") {
               finalRole = metadataRole;
             } else {
-              // Default to STUDENT if no valid role found
-              finalRole = "STUDENT";
+              // Auto-detect role based on user's data in MongoDB
+              const { Company, Job } = require("../models/index");
+              const hasCompany = await Company.findOne({ createdBy: user._id });
+              const hasJobs = await Job.findOne({ postedBy: user._id });
+              
+              if (hasCompany || hasJobs) {
+                finalRole = "HR";
+                console.log(`🔍 Auto-detected HR role for user ${clerkId} (has company/jobs)`);
+              } else {
+                finalRole = "STUDENT";
+              }
             }
           } catch (err) {
             console.error(
               "Failed to fetch Clerk user metadata for existing user",
               err
             );
-            // Default to STUDENT if we can't fetch metadata
-            finalRole = "STUDENT";
+            // Auto-detect role based on user's data in MongoDB
+            try {
+              const { Company, Job } = require("../models/index");
+              const hasCompany = await Company.findOne({ createdBy: user._id });
+              const hasJobs = await Job.findOne({ postedBy: user._id });
+              
+              if (hasCompany || hasJobs) {
+                finalRole = "HR";
+                console.log(`🔍 Auto-detected HR role for user ${clerkId} (has company/jobs)`);
+              } else {
+                finalRole = "STUDENT";
+              }
+            } catch (detectErr) {
+              console.error("Error auto-detecting role:", detectErr);
+              finalRole = "STUDENT";
+            }
           }
           needsUpdate = true;
+        } else {
+          // Even if role exists, check if it's correct based on user's data
+          // If user has companies/jobs but role is STUDENT, they should be HR
+          if (user.role === "STUDENT") {
+            try {
+              const { Company, Job } = require("../models/index");
+              const hasCompany = await Company.findOne({ createdBy: user._id });
+              const hasJobs = await Job.findOne({ postedBy: user._id });
+              
+              if (hasCompany || hasJobs) {
+                finalRole = "HR";
+                needsUpdate = true;
+                console.log(`🔧 Auto-fixing role: User ${clerkId} has companies/jobs but role is STUDENT, updating to HR`);
+              }
+            } catch (err) {
+              console.error("Error checking user data for role fix:", err);
+            }
+          }
         }
 
         // Update user if needed
         if (needsUpdate) {
           user.role = finalRole as "HR" | "STUDENT";
           await user.save();
-          console.log(`Updated user ${clerkId} role to ${finalRole}`);
+          console.log(`✅ Updated user ${clerkId} role to ${finalRole}`);
 
           // Sync Role to Clerk Public Metadata
           try {
@@ -137,7 +178,7 @@ export const protect = async (
 
       req.user = { id: user.clerkId, role: user.role, mongoId: user._id };
       console.log(
-        `Auth successful for user ${clerkId} with role: ${user.role}`
+        `✅ Auth successful for user ${clerkId} with role: ${user.role} (MongoDB ID: ${user._id})`
       );
       next();
     } catch (e) {
@@ -148,15 +189,15 @@ export const protect = async (
 };
 
 export const authorize = (roles: string[]) => {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
-      console.error("Authorize middleware: req.user is missing");
+      console.error("❌ Authorize middleware: req.user is missing");
       res.status(403).json({ message: "Unauthorized - User not found" });
       return;
     }
 
     if (!req.user.role) {
-      console.error("Authorize middleware: req.user.role is missing", req.user);
+      console.error("❌ Authorize middleware: req.user.role is missing", req.user);
       res.status(403).json({ message: "Unauthorized - User role not set" });
       return;
     }
@@ -165,23 +206,47 @@ export const authorize = (roles: string[]) => {
     const userRole = String(req.user.role).trim().toUpperCase();
     const normalizedRoles = roles.map((r) => String(r).trim().toUpperCase());
 
+    console.log(`🔐 Authorization check: User role="${userRole}", Required roles=[${normalizedRoles.join(", ")}], Path=${req.path}`);
+
     if (!normalizedRoles.includes(userRole)) {
+      // Try to refresh user role from MongoDB in case it was updated
+      try {
+        const { User } = require("../models/index");
+        const mongoUser = await User.findById(req.user.mongoId);
+        if (mongoUser && mongoUser.role) {
+          const refreshedRole = String(mongoUser.role).trim().toUpperCase();
+          console.log(`🔄 Refreshed user role from MongoDB: ${refreshedRole}`);
+          
+          if (normalizedRoles.includes(refreshedRole)) {
+            // Update req.user with refreshed role
+            req.user.role = mongoUser.role;
+            console.log(`✅ Role refreshed, access granted`);
+            next();
+            return;
+          }
+        }
+      } catch (refreshError) {
+        console.error("Error refreshing user role:", refreshError);
+      }
+
       console.error(
-        `Authorize middleware: Role "${userRole}" not in allowed roles: [${normalizedRoles.join(
+        `❌ Access denied: Role "${userRole}" not in allowed roles: [${normalizedRoles.join(
           ", "
         )}]. User ID: ${req.user?.id}, Path: ${req.path}`
       );
       res.status(403).json({
         message: `Access denied: Your role "${userRole}" does not have permission to access this resource. Required role(s): ${roles.join(
           ", "
-        )}. Please log in with the correct account.`,
+        )}. Please ensure your account has the correct role set in MongoDB.`,
         userRole: userRole,
         requiredRoles: roles,
         path: req.path,
+        hint: "If you believe this is an error, check your user role in MongoDB. HR users should have role='HR' and Students should have role='STUDENT'."
       });
       return;
     }
 
+    console.log(`✅ Authorization granted for role: ${userRole}`);
     next();
   };
 };

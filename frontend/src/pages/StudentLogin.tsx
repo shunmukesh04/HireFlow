@@ -9,19 +9,19 @@ export default function StudentLogin() {
                     backgroundImage: 'url("https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-1.2.1&auto=format&fit=crop&w=1950&q=80")',
                 }}
             >
-                <div className="absolute inset-0 bg-blue-900/80"></div>
+                <div className="absolute inset-0 bg-orange-900/80"></div>
                 <div className="relative z-10 flex flex-col justify-center px-16 text-white h-full">
                     <div className="text-3xl font-bold mb-4 flex items-center gap-2">
-                        <span className="bg-white text-blue-900 p-1 rounded font-extrabold text-xl">HF</span> Hireflow
+                        <span className="bg-white text-orange-900 p-1 rounded font-extrabold text-xl">HF</span> Hireflow
                     </div>
                     <h1 className="text-5xl font-bold mb-6 leading-tight">
                         Unlock Your Career Potential
                     </h1>
-                    <p className="text-xl text-blue-100 max-w-md">
+                    <p className="text-xl text-orange-100 max-w-md">
                         Join thousands of students getting hired based on skills, not just resumes. AI-powered assessments tailored for you.
                     </p>
 
-                    <div className="mt-12 flex gap-6 text-sm text-blue-200">
+                    <div className="mt-12 flex gap-6 text-sm text-orange-200">
                         <span>Trusted By:</span>
                         <div className="flex gap-4 font-bold text-white opacity-80">
                             <span>Google</span>
@@ -50,9 +50,9 @@ export default function StudentLogin() {
                                     card: "shadow-none border-none w-full p-0",
                                     headerTitle: "hidden",
                                     headerSubtitle: "hidden",
-                                    formButtonPrimary: "bg-blue-600 hover:bg-blue-700 text-sm normal-case",
+                                    formButtonPrimary: "bg-orange-600 hover:bg-orange-700 text-sm normal-case",
                                     socialButtonsBlockButton: "border-gray-300 text-gray-600 hover:bg-gray-50 text-sm normal-case",
-                                    formFieldInput: "rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500",
+                                    formFieldInput: "rounded-lg border-gray-300 focus:ring-orange-500 focus:border-orange-500",
                                     footerAction: "hidden"
                                 }
                             }}
@@ -60,7 +60,7 @@ export default function StudentLogin() {
                     </div>
 
                     <div className="mt-6 text-center text-sm text-gray-500">
-                        Don't have an account? <a href="/sign-up" className="text-blue-600 font-bold hover:underline">Sign up</a>
+                        Don't have an account? <a href="/student-signup" className="text-orange-600 font-bold hover:underline">Sign up</a>
                     </div>
                 </div>
             </div>

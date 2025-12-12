@@ -10,17 +10,17 @@ const quotes = [
   {
     text: "The only way to do great work is to love what you do. If you haven't found it yet, keep looking. Don't settle.",
     author: "Steve Jobs",
-    bg: 'from-indigo-600 to-blue-600'
+    bg: 'from-orange-500 to-orange-600'
   },
   {
     text: "Your work is going to fill a large part of your life, and the only way to be truly satisfied is to do what you believe is great work.",
     author: "Steve Jobs",
-    bg: 'from-purple-600 to-indigo-600'
+    bg: 'from-orange-600 to-orange-700'
   },
   {
     text: "The future belongs to those who believe in the beauty of their dreams.",
     author: "Eleanor Roosevelt",
-    bg: 'from-blue-600 to-cyan-500'
+    bg: 'from-orange-500 to-amber-500'
   }
 ];
 
@@ -54,9 +54,9 @@ export default function Landing() {
     // Loading state
     if (isSignedIn && !userRole) {
         return (
-            <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-white">
+            <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-orange-50 to-white">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
                     <p className="text-gray-600">Preparing your dashboard...</p>
                 </div>
             </div>
@@ -77,9 +77,9 @@ export default function Landing() {
                     <div className="container mx-auto flex justify-between items-center">
                         <Logo withText={true} onClick={() => navigate('/')} />
                         <div className="hidden md:flex space-x-6">
-                            <a href="#features" className="text-slate-700 hover:text-indigo-600 font-medium transition-colors">Features</a>
-                            <a href="#how-it-works" className="text-slate-700 hover:text-indigo-600 font-medium transition-colors">How It Works</a>
-                            <a href="#testimonials" className="text-slate-700 hover:text-indigo-600 font-medium transition-colors">Testimonials</a>
+                            <a href="#features" className="text-slate-700 hover:text-orange-600 font-medium transition-colors">Features</a>
+                            <a href="#how-it-works" className="text-slate-700 hover:text-orange-600 font-medium transition-colors">How It Works</a>
+                            <a href="#testimonials" className="text-slate-700 hover:text-orange-600 font-medium transition-colors">Testimonials</a>
                         </div>
                     </div>
                 </header>
@@ -96,7 +96,7 @@ export default function Landing() {
                                     transition={{ duration: 0.6 }}
                                     className="text-4xl md:text-5xl lg:text-6xl font-bold text-slate-800 leading-tight mb-6"
                                 >
-                                    Find Your Perfect <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-blue-600">Career Match</span>
+                                    Find Your Perfect <span className="bg-clip-text text-transparent bg-gradient-to-r from-orange-500 to-orange-600">Career Match</span>
                                 </motion.h1>
                                 
                                 <motion.p 
@@ -118,13 +118,13 @@ export default function Landing() {
                                 >
                                     <button 
                                         onClick={() => navigate('/hr-login')}
-                                        className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
+                                        className="px-8 py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
                                     >
                                         I'm Hiring
                                     </button>
                                     <button 
                                         onClick={() => navigate('/student-login')}
-                                        className="px-8 py-4 bg-white text-indigo-600 font-semibold border-2 border-indigo-100 rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-1 transition-all duration-300"
+                                        className="px-8 py-4 bg-white text-orange-600 font-semibold border-2 border-orange-100 rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-1 transition-all duration-300"
                                     >
                                         Find a Job
                                     </button>
@@ -146,15 +146,15 @@ export default function Landing() {
                                     />
                                 </div>
                                 {/* Decorative elements */}
-                                <div className="absolute -bottom-6 -left-6 w-32 h-32 bg-blue-100 rounded-full -z-10"></div>
-                                <div className="absolute -top-6 -right-6 w-24 h-24 bg-indigo-100 rounded-full -z-10"></div>
+                                <div className="absolute -bottom-6 -left-6 w-32 h-32 bg-orange-100 rounded-full -z-10"></div>
+                                <div className="absolute -top-6 -right-6 w-24 h-24 bg-orange-100 rounded-full -z-10"></div>
                             </motion.div>
                         </div>
                     </div>
 
                     {/* Quotes Section */}
                     <div className="mt-24 md:mt-32 relative overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-r from-indigo-50 to-blue-50 -skew-y-3 transform origin-top-left"></div>
+                        <div className="absolute inset-0 bg-gradient-to-r from-orange-50 to-orange-100 -skew-y-3 transform origin-top-left"></div>
                         <div className="container mx-auto px-4 py-16 relative">
                             <h2 className="text-3xl md:text-4xl font-bold text-center text-slate-800 mb-12">
                                 What People Are Saying
@@ -209,7 +209,7 @@ export default function Landing() {
                                 {[
                                     {
                                         icon: (
-                                            <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                             </svg>
                                         ),
@@ -218,7 +218,7 @@ export default function Landing() {
                                     },
                                     {
                                         icon: (
-                                            <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                                             </svg>
                                         ),
@@ -227,7 +227,7 @@ export default function Landing() {
                                     },
                                     {
                                         icon: (
-                                            <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                             </svg>
                                         ),
@@ -243,7 +243,7 @@ export default function Landing() {
                                         viewport={{ once: true }}
                                         className="bg-white p-8 rounded-xl shadow-lg border border-slate-100 hover:shadow-xl transition-shadow duration-300"
                                     >
-                                        <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mb-6">
+                                        <div className="w-12 h-12 bg-orange-50 rounded-full flex items-center justify-center mb-6">
                                             {feature.icon}
                                         </div>
                                         <h3 className="text-xl font-bold text-slate-800 mb-3">{feature.title}</h3>
